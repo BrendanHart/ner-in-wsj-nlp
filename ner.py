@@ -10,14 +10,17 @@ from nltk.corpus import PlaintextCorpusReader
 
 import wikification
 
-mypath="/home/brendan/work/nlp/ner/wsj_testdata"
-
+### NERTagger is the class capable of training from, tagging and putting together files
 class NERTagger():
 
+    # Create a new tagger
     def __init__(self):
         self.parser = None
         self.classifier = EnamexBayesClassifier()
 
+    # This method will tag files from in a given path
+    # It returns a dictionary of files which has values of their tagged parses,
+    # as well as a similar dictionary of all named entities found in a given file.
     def tag(self, path, files):
         corpus = PlaintextCorpusReader(path, files)
         count = 1
@@ -40,6 +43,8 @@ class NERTagger():
             nes[f] = foundNes
         return (taggedDocs, nes)
              
+    # This method will train the Naive Bayes classifier.
+    # All that needs to be provided is the training directory and a list of training file names.
     def train(self, trainDir, trainFiles, parseFiles=True):
         if parseFiles:
             self.parser = EnamexParser(trainDir, trainFiles)
@@ -50,6 +55,12 @@ class NERTagger():
             print("Training: " + f + " - " + str(count)+"/"+str(len(trainFiles)))
             self.classifier.train(EnamexParser.neTreesFromParsed(parsed))
 
+    # This method can be used to test the system.
+    # trainDir - the training file directory
+    # trainFiles - the training files list
+    # testDir - the test file directory
+    # testFiles - the test file list
+    # looseTest - whether a loose test should be performed or not (boolean)
     def test(self, trainDir, trainFiles, testDir, testFiles, looseTest=False):
         print("NOTE: The following training has no effect on the tag function. It is merely for testing.")
         print("The test directory MUST also contain tagged versions of the training files for evaluation.")
@@ -66,9 +77,13 @@ class NERTagger():
         for f in testFiles:
             perc = 0
             if looseTest:
-                perc = 100 * Test.looseCalculate(nes[f], EnamexParser.nesFromParsed(self.parser.get(f)))
+                res = Test.looseCalculate(nes[f], EnamexParser.nesFromParsed(self.parser.get(f)))
+                if not res == None:
+                    perc = 100 * res
             else:
-                perc = 100 * Test.calculate(nes[f], EnamexParser.nesFromParsed(self.parser.get(f)))
+                res = Test.calculate(nes[f], EnamexParser.nesFromParsed(self.parser.get(f)))
+                if not res == None:
+                    perc = 100 * res
             percSum += perc
             print("Test: " + f + " " + str(perc) + "%")
 
@@ -79,11 +94,7 @@ class NERTagger():
         print("Achieved using " + str(len(trainFiles)) + " training files and " + str(len(testFiles)) + " test files.")
         
 
-    def read(self, path):
-        onlyfiles = [f for f in listdir(path) if isfile(join(path, f)) and stat(path + "/" + f).st_size != 0]
-
-        return PlaintextCorpusReader(path,onlyfiles) 
-
+    # Process raw text, carries out tokenization and chunking, as well as some simple replacements.
     def process(self, raw):
         sents = []
         
@@ -102,6 +113,7 @@ class NERTagger():
 
         return sents
 
+    # Turn the result of a value of taggedDocs from the tag method into a text document.
     def stitch(self, tagged):
 
         sentences = list(tagged)
@@ -134,6 +146,7 @@ class NERTagger():
 
         return ''.join(sentences)
 
+    # Attempt to fix the quotes in a text
     def fixQuotes(self, text):
         seenSingle = False
         seenDouble = False
@@ -170,6 +183,7 @@ class NERTagger():
         return text
 
 
+    # Carry out a shallow parse on the POS tagged data
     def chunk(self, posTagged):
         ### NOTE: this grammar picks up chairman of Company
         ###       as well as United Sates
@@ -190,12 +204,15 @@ class NERTagger():
 
         return parsed
 
+    # Convert a named entity to a tag
     def neToTag(self, label, t):
         res = "<ENAMEX TYPE=\"" + label + "\">"
         for c in t: 
             res += c + " "
         return (res[:len(res)-1] + "</ENAMEX>")
 
+    
+    # Extract a list of the named entity words
     def extractWordTag(self, t):
         r = []
         for i in t:
@@ -206,6 +223,7 @@ class NERTagger():
                 r.append(i)
         return r
 
+    # Turn a tree into a phrase
     def flatten(self, t):
         phrase = ""
         for c in t:
@@ -222,12 +240,14 @@ class NERTagger():
                     phrase += " " + c[0]
         return phrase[1:]
 
+    # Get the first word of a tree
     def getFirstWord(self, t):
         if type(t) is nltk.Tree:
             return self.getFirstWord(t[0])
         else:
             return t
 
+    # Tag a sentence
     def neTagSentence(self, s):
         for i in range(len(s)):
             if type(s[i]) is nltk.Tree:
@@ -238,7 +258,7 @@ class NERTagger():
 
         return s
         
-                    
+    # Classify a named entity 
     def classify(self, ne, s, i):
         locRE = ["\d+\s[A-Za-z]+", "[A-Za-z]+\s\d+"]
         for r in locRE:
@@ -261,6 +281,7 @@ class NERTagger():
 
         return result
 
+    # Get all the named entities from a tree
     def getNesFromTree(self, tree):
         nes = []
         for e in tree:
@@ -273,13 +294,23 @@ class NERTagger():
         return nes
 
 
-path = "./wsj_test_tagged/"
-allFiles = [f for f in listdir(path) if isfile(join(path, f))] #and stat(path + f).st_size != 0][:700]
-print(allFiles[70:75])
+###
+# For an example of testing, uncomment the following:
+#
+#path = "./wsj_test_tagged/"
+#allFiles = [f for f in listdir(path) if isfile(join(path, f))]
+#nerTagger = NERTagger()
+#nerTagger.test("./wsj_test_tagged/", allFiles[:1400], "./wsj_testdata", allFiles[1400:1405], False)
+###
 
-nerTagger = NERTagger()
-#nerTagger.train("./wsj_test_tagged/", allFiles[:100])
-nerTagger.test("./wsj_test_tagged/", allFiles[:700], "./wsj_testdata", allFiles[700:800], True)
-#(tagged, ne) = nerTagger.tag("./wsj_testdata/", allFiles[70:75])
+###
+# For an example of training, tagging one file and then stitching together, uncomment the following:
+#
+#path = "./wsj_test_tagged/"
+#allFiles = [f for f in listdir(path) if isfile(join(path, f))]
+#nerTagger = NERTagger()
+#nerTagger.train("./wsj_test_tagged/", allFiles[:1400])
+#(tagged, ne) = nerTagger.tag("./wsj_testdata/", allFiles[1400:1401])
 #for s in tagged.keys():
 #    print(nerTagger.stitch(tagged[s]))
+###

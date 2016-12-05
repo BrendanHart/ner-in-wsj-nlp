@@ -2,6 +2,8 @@ import nltk
 class Test():
     def calculate(mine, test):
         count = 0
+        if len(test) == 0:
+            return None
         for neT in test:
             neMIndex = 0
             while neMIndex < len(mine):
@@ -14,6 +16,8 @@ class Test():
 
     def looseCalculate(mine, test):
         count = 0
+        if len(test) == 0:
+            return None
         for neT in test:
             neMIndex = 0
             while neMIndex < len(mine):
